@@ -364,7 +364,8 @@ if __name__ == "__main__":
 ##########################
 
  # Display logo
-st.image("IS-Logo_RGB_Vertical-onWhite.png", width=120)
+col1, col2, col3 = st.columns([1, 2, 1])
+col2.image("IS-Logo_RGB_Vertical-onWhite.png.png", width=112)
 st.title("Donor File Health Analysis Portal")
 st.write("Upload donor transaction file and run analysis.")
 
