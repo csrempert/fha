@@ -363,11 +363,15 @@ if __name__ == "__main__":
 # STREAMLIT FRONT END
 ##########################
 
+ # Display logo
+with open("is_logo_dark.svg", "r") as logo_file:
+     logo_svg = logo_file.read()
+st.markdown(logo_svg, unsafe_allow_html=True)
 st.title("Donor File Health Analysis Portal")
-st.write("Upload donor transaction file and run analysis locally.")
+st.write("Upload donor transaction file and run analysis.")
 
 # 1) File Upload
-uploaded_file = st.file_uploader("Upload Transaction File", type=["xlsx", "xls", "csv"])
+uploaded_file = st.file_uploader("Upload Transaction File", type=["csv"])
 
 # We'll store a placeholder for the DataFrame once uploaded
 df_uploaded = None
@@ -408,7 +412,7 @@ if uploaded_file is not None:
     st.write("Column mapping complete. Proceed with analysis parameters below.")
 
 else:
-    st.warning("Please upload a file (CSV or Excel) to begin.")
+    st.warning("Please upload a file (CSV only) to begin.")
 
 
 # 3) Parameter Inputs
@@ -462,7 +466,7 @@ if run_analysis_button:
         start_date = pd.to_datetime(analysis_start_date) if analysis_start_date else None
         end_date = pd.to_datetime(analysis_end_date) if analysis_end_date else None
 
-        st.write("Processing data with your column mappings...")
+        st.write("Processing your file. Sit tight! This may take a while.")
 
         try:
             # 1) Clean & standardize the DataFrame
