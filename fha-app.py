@@ -472,6 +472,8 @@ if run_analysis_button:
 
         st.write("Processing your file. Sit tight! This may take a while.")
 
+        progress_bar = st.progress(0)
+
         try:
             # 1) Clean & standardize the DataFrame
             trx = clean_data(
@@ -482,6 +484,8 @@ if run_analysis_button:
                 max_amount=max_donation_cutoff,
                 fy_start_month=fy_start_month
             )
+        
+    
         except ValueError as e:
             st.error(f"Column mapping error: {e}")
             st.stop()
@@ -490,13 +494,19 @@ if run_analysis_button:
             st.error("Please select at least one Fiscal Year to include in the output.")
             st.stop()
 
+        progress_bar.progress(20)
+
         # 2) Run analysis
         results = runAll(trx, fy_list=sorted(selected_fys))
+
+        progress_bar.progress(50)
 
         # Generate CSVs in-memory for download
         csv_files = {}
         for fy, df_out in results.items():
             csv_files[f"analysis_{fy}.csv"] = df_out.to_csv(index=False)
+
+        progress_bar.progress(70)
 
         # Rolling analysis
         rolled_data = toRolling(trx)
@@ -504,6 +514,8 @@ if run_analysis_button:
         rolling_results = runAll(rolled_data, [last_fy])
         for fy, df_out in rolling_results.items():
             csv_files[f"analysis_{fy}_rolling.csv"] = df_out.to_csv(index=False)
+
+        progress_bar.progress(85)
 
         import io, zipfile
         zip_buffer = io.BytesIO()
@@ -520,6 +532,8 @@ if run_analysis_button:
         )
         st.success("Analysis complete! Download the results using the button above.")
 
+        progress_bar.progress(100)
+        
         # 5) Display a summary in-app
         st.subheader("Analysis Summary")
         st.write("Here are the breakdowns for each FY you selected:")
