@@ -436,7 +436,7 @@ fy_choice = st.selectbox(
 fy_start_month = fy_format_options[fy_choice]
 
 # Let users pick which FYs they want to include
-years_available = list(range(2018, current_year))  # Example range
+years_available = list(range(2018, 2025))  # Example range
 selected_fys = st.multiselect(
     "Select which Fiscal Years to include in the output",
     years_available,
