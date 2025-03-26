@@ -364,7 +364,7 @@ if __name__ == "__main__":
 ##########################
 
  # Display logo
-st.image("IS-Logo_RGB_Vertical-onWhite.png", use_column_width=True)
+st.image("IS-Logo_RGB_Vertical-onWhite.png", width=120)
 st.title("Donor File Health Analysis Portal")
 st.write("Upload donor transaction file and run analysis.")
 
