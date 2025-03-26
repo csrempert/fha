@@ -364,7 +364,8 @@ if __name__ == "__main__":
 ##########################
 
  # Display logo
-st.markdown("<div style='display: flex; justify-content: center;'><img src='IS-Logo_RGB_Vertical-onWhite.png' width='112'></div>", unsafe_allow_html=True)
+col1, col2, col3 = st.columns(3)
+col2.image("IS-Logo_RGB_Vertical-onWhite.png", width=112)
 st.title("Donor File Health Analysis Portal")
 st.write("Upload donor transaction file and run analysis.")
 
