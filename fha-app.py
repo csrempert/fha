@@ -8,6 +8,11 @@ from datetime import datetime, timedelta
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
+from datetime import datetime
+
+current_year = datetime.now().year
+print(current_year)
+
 ######################
 # CONFIG & CONSTANTS #
 ######################
@@ -431,11 +436,11 @@ fy_choice = st.selectbox(
 fy_start_month = fy_format_options[fy_choice]
 
 # Let users pick which FYs they want to include
-years_available = list(range(2019, 2031))  # Example range
+years_available = list(range(2018, current_year))  # Example range
 selected_fys = st.multiselect(
     "Select which Fiscal Years to include in the output",
     years_available,
-    default=[2021, 2022, 2023]  # or any sensible default
+    default=[2021, 2022, 2023, 2024]  # or any sensible default
 )
 
 # Date range
@@ -445,7 +450,7 @@ analysis_end_date = st.date_input("Filter End Date (optional)", value=None)
 # Max donation cutoff
 max_donation_cutoff = st.number_input(
     "Max Donation Amount (exclude donations above this amount)",
-    value=25000,
+    value=10000,
     step=1000
 )
 
