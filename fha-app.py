@@ -364,9 +364,7 @@ if __name__ == "__main__":
 ##########################
 
  # Display logo
-with open("is_logo_dark.svg", "r") as logo_file:
-     logo_svg = logo_file.read()
-st.markdown(logo_svg, unsafe_allow_html=True)
+st.image("IS-Logo_RGB_Vertical-onWhite.png", use_column_width=True)
 st.title("Donor File Health Analysis Portal")
 st.write("Upload donor transaction file and run analysis.")
 
