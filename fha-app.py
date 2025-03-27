@@ -17,39 +17,20 @@ print(current_year)
 # CONFIG & CONSTANTS #
 ######################
 
-# A simple list of labels used for final CSV rows
-ROW_LABELS = ['All Donors', 'New Donors', 'New Last Year', 'Consecutive', 'Lapsed', 'Reinstated Last Year']
-
-
 ##########################################
 # STEP 1: READ & CLEAN THE TRANSACTIONS  #
 ##########################################
 
 def assign_fiscal_year(row, start_month: int) -> int:
     """
-    Assigns the fiscal year based on the user’s 'start_month'.
-    This version uses the START of the fiscal year for labeling.
-    
-    For example, if the user selects July–June (start_month=7),
-    then a transaction on 2022-07-01 => FY=2022 (the year it starts).
-    That means all transactions from 2022-07-01 through 2023-06-30
-    will be labeled '2022'.
+    Assigns the fiscal year based on the user’s 'start_month',
+    labeling by the start of that fiscal year.
     """
     y = row['YEAR']
     m = row['MONTH']
-
-    # If the user selected January–December, just use the calendar year:
     if start_month == 1:
         return y
-    
-    # Otherwise, for Apr–Mar, Jul–Jun, or Oct–Sep, if the transaction date
-    # is on or after 'start_month', assign it the current year;
-    # otherwise assign it to the previous year.
-    if m >= start_month:
-        return y
-    else:
-        return y - 1
-
+    return y if m >= start_month else (y - 1)
 
 def clean_data(
     df: pd.DataFrame,
@@ -60,19 +41,8 @@ def clean_data(
     fy_start_month: int = 1
 ) -> pd.DataFrame:
     """
-    Reads transaction data from an already-loaded DataFrame,
-    uses 'column_map' to rename columns to a standard set:
-       - 'ID', 'AMOUNT', 'DATE'
-    Then applies:
-      - date parsing
-      - optional filtering by date range
-      - optional filtering out large gifts
-      - assignment of YEAR, MONTH, DAY
-      - assignment of a dynamic FY based on the user-selected start month
-      - dropping rows missing critical fields
+    Reads transaction data, applies cleaning/filters, and assigns FY.
     """
-
-    # 1) Rename user-selected columns to a standard set
     rename_dict = {
         column_map['id']: 'ID',
         column_map['amount']: 'AMOUNT',
@@ -80,7 +50,6 @@ def clean_data(
     }
     df = df.rename(columns=rename_dict)
 
-    # 2) Ensure required columns exist
     required_cols = ['ID', 'AMOUNT', 'DATE']
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
@@ -90,7 +59,7 @@ def clean_data(
             f"DataFrame columns are: {list(df.columns)}"
         )
 
-    # 3) Parse date and amount
+    # Parse date and amount
     df['DATE'] = pd.to_datetime(df['DATE'], errors='coerce')
     df['AMOUNT'] = (
         df['AMOUNT']
@@ -99,25 +68,25 @@ def clean_data(
         .astype(float)
     )
 
-    # 4) Drop rows missing ID, DATE, or AMOUNT
+    # Drop rows missing ID, DATE, or AMOUNT
     df = df.dropna(subset=['ID', 'DATE', 'AMOUNT']).reset_index(drop=True)
 
-    # 5) Filter out by optional date range
+    # Filter by optional date range
     if min_date is not None:
         df = df[df['DATE'] >= min_date]
     if max_date is not None:
         df = df[df['DATE'] <= max_date]
 
-    # 6) Filter out donations above the user-defined max_amount
+    # Filter out donations above max_amount
     if max_amount is not None:
         df = df[df['AMOUNT'] <= max_amount]
 
-    # 7) Create YEAR, MONTH, DAY columns
+    # Create YEAR, MONTH, DAY
     df['YEAR'] = df['DATE'].dt.year
     df['MONTH'] = df['DATE'].dt.month
     df['DAY'] = df['DATE'].dt.day
 
-    # 8) Compute FY based on user-selected fiscal year start
+    # Compute FY
     df['FY'] = df.apply(lambda r: assign_fiscal_year(r, fy_start_month), axis=1)
 
     return df
@@ -129,33 +98,27 @@ def clean_data(
 
 def create_output(name: str, data: pd.DataFrame) -> dict:
     """
-    Example output function (group by YEAR/MONTH, etc.).
-    In your final use-case, tailor as needed.
+    Example aggregator for demonstration.
     """
     output = {'name': name}
-
     output['counts'] = (
         data.groupby(['YEAR','MONTH']).size().reset_index(name='n')
     )
-
     distinct_df = data.drop_duplicates(subset=['ID','YEAR','MONTH'])
     output['counts_unique'] = (
         distinct_df.groupby(['YEAR','MONTH']).size().reset_index(name='n')
     )
-
     totals_df = (
         data.groupby(['YEAR','MONTH'])['AMOUNT']
         .sum()
         .reset_index(name='TOTAL')
     )
     output['totals'] = totals_df
-
     return output
 
 def get_diff(data: pd.DataFrame) -> pd.DataFrame:
     """
     Calculate # of days (in years) between consecutive gifts per donor.
-    Used later to identify donors who might have lapsed, etc.
     """
     data = data.sort_values(['ID','DATE'])
     data['Diff'] = data.groupby('ID')['DATE'].diff().dt.days / 365.0
@@ -168,11 +131,10 @@ def get_diff(data: pd.DataFrame) -> pd.DataFrame:
 
 def getNewSingle(df: pd.DataFrame, data_only: bool=False) -> pd.DataFrame or dict:
     """
-    Return each donor's very first gift record (by date).
+    Return each donor's very first gift record.
     """
     name = 'new'
     new_data = df.sort_values(by=['ID','DATE']).groupby('ID', group_keys=False).head(1)
-
     if data_only:
         return new_data
     else:
@@ -180,15 +142,13 @@ def getNewSingle(df: pd.DataFrame, data_only: bool=False) -> pd.DataFrame or dic
 
 def getLapsedSingle(df: pd.DataFrame, data_only: bool=False) -> pd.DataFrame or dict:
     """
-    Example 'lapsed' logic: if time between consecutive gifts is > 1 year,
-    consider that donor record lapsed at that point.
+    Example 'lapsed' logic: if time between consecutive gifts is > 1 year.
     """
     name = 'lapsed'
     new_data = df.copy()
     new_data = new_data.sort_values(by=['ID','DATE'])
     new_data = get_diff(new_data)
     new_data = new_data[new_data['Diff'] > 1]
-
     if data_only:
         return new_data
     else:
@@ -209,7 +169,7 @@ def getAllDonors(df: pd.DataFrame, fy: int) -> pd.DataFrame:
 
 def getNewDonorsYear(df: pd.DataFrame, fy: int) -> pd.DataFrame:
     """
-    Returns data for donors whose first-ever gift is in the specified FY.
+    Donors whose first-ever gift is in the specified FY.
     """
     new_ids = getNewSingle(df, data_only=True)
     new_ids = new_ids[new_ids['FY'] == fy]['ID'].unique()
@@ -217,7 +177,7 @@ def getNewDonorsYear(df: pd.DataFrame, fy: int) -> pd.DataFrame:
 
 def getNewDonorsYearPrevious(df: pd.DataFrame, fy: int) -> pd.DataFrame:
     """
-    Returns data for donors whose first-ever gift was in the prior FY.
+    Donors whose first-ever gift was in the prior FY.
     """
     new_ids = getNewSingle(df, data_only=True)
     new_ids = new_ids[new_ids['FY'] == (fy - 1)]['ID'].unique()
@@ -235,26 +195,22 @@ def getConsecutive(df: pd.DataFrame, fy: int) -> pd.DataFrame:
 
 def getLapsed(df: pd.DataFrame, fy: int) -> pd.DataFrame:
     """
-    Example logic: Donors who gave before (fy-1), but not in (fy-1).
+    Donors who gave before (fy-1), but not in (fy-1).
     """
     new_df = df.copy().sort_values(by=['ID','DATE'])
- 
     def condition(col):
         return (not (col == fy - 1).any()) and ((col < (fy - 1)).any())
- 
     mask = new_df.groupby('ID')['FY'].transform(condition)
     return new_df[mask].reset_index(drop=True)
 
 def getReinstatedLastYear(df: pd.DataFrame, fy: int) -> pd.DataFrame:
     """
-    Example logic: Donors who gave in (fy-1), did NOT give in (fy-2),
+    Donors who gave in (fy-1), did NOT give in (fy-2),
     but had given at some point prior to (fy-2).
     """
     new_df = df.copy().sort_values(by=['ID','DATE'])
- 
     def condition(col):
         return ((col == fy - 1).any()) and (not (col == fy - 2).any()) and ((col < (fy - 2)).any())
- 
     mask = new_df.groupby('ID')['FY'].transform(condition)
     return new_df[mask].reset_index(drop=True)
 
@@ -301,22 +257,19 @@ def getAnnualBreakdowns(df: pd.DataFrame, fy: int) -> dict:
 
 def toRolling(data: pd.DataFrame) -> pd.DataFrame:
     """
-    Example rolling-year shift logic. 
+    Example rolling-year shift logic.
     """
     max_date = data['DATE'].max()
-    # Move everything so it aligns at a year earlier
     new_end_date = pd.to_datetime(f"{max_date.year - 1}-12-31")
     diff = max_date - new_end_date
  
     data_rolled = data.copy()
     data_rolled['DATE'] = data_rolled['DATE'] - diff
  
-    # Recompute YEAR, MONTH, DAY, FY
     data_rolled['YEAR'] = data_rolled['DATE'].dt.year
     data_rolled['MONTH'] = data_rolled['DATE'].dt.month
     data_rolled['DAY'] = data_rolled['DATE'].dt.day
  
-    # For demonstration, label the rolling window as a calendar FY
     data_rolled['FY'] = data_rolled['YEAR']
     return data_rolled
 
@@ -357,32 +310,102 @@ def runAll(
     return results
 
 
+##########################
+# NEW: COMBINE RESULTS   #
+##########################
+
+def combine_results(results: dict, rolling_results: dict, last_fy: int) -> pd.DataFrame:
+    """
+    Takes the per-FY results dict plus the rolling results dict,
+    and merges them into a single wide table:
+       Segment | Metric | FYyyyy | FYyyyy | ... | Rolling
+    """
+    frames = []
+    
+    # 1) Melt each FY's DataFrame
+    for fy_str, df_out in results.items():
+        df_temp = df_out.copy()
+        df_temp['segment'] = df_temp.index
+        df_melt = df_temp.melt(id_vars='segment', var_name='metric', value_name='value')
+        df_melt['FY'] = "FY" + fy_str  # e.g. "FY2021"
+        frames.append(df_melt)
+    
+    # 2) Melt the rolling results (only 1 FY key in rolling_results)
+    if str(last_fy) in rolling_results:
+        df_roll = rolling_results[str(last_fy)].copy()
+        df_roll['segment'] = df_roll.index
+        df_melt_roll = df_roll.melt(id_vars='segment', var_name='metric', value_name='value')
+        df_melt_roll['FY'] = "Rolling"
+        frames.append(df_melt_roll)
+    
+    # Combine all melted frames
+    df_all = pd.concat(frames, ignore_index=True)
+
+    # Pivot so that rows are [segment, metric], columns are FY, values = 'value'
+    df_pivot = df_all.pivot_table(
+        index=['segment','metric'],
+        columns='FY',
+        values='value'
+    )
+    
+    # Sort columns so that FYs appear in ascending order, Rolling at the end
+    def sort_key(col):
+        return 999999 if col == "Rolling" else int(col.replace("FY", ""))
+    sorted_cols = sorted(df_pivot.columns, key=sort_key)
+    df_pivot = df_pivot[sorted_cols]
+    
+    # Reset index so that segment and metric are columns
+    df_final = df_pivot.reset_index()
+
+    # (1) Rename the segments for readability
+    segment_mapping = {
+        'new':      'New Donors',
+        'newLast':  'New Previous Year',
+        'consecutive': 'Consecutive',
+        'reLast':   'Reinstated Last Year',
+        'lapsed':   'Lapsed',
+        'allDon':   'All Donors'
+    }
+    df_final['segment'] = df_final['segment'].replace(segment_mapping)
+
+    # (2) Force the segments to appear in the desired order
+    desired_order = [
+        'New Donors',
+        'New Previous Year',
+        'Consecutive',
+        'Reinstated Last Year',
+        'Lapsed',
+        'All Donors'
+    ]
+    df_final['segment'] = pd.Categorical(df_final['segment'], categories=desired_order, ordered=True)
+    df_final = df_final.sort_values(by=['segment','metric'])
+
+    return df_final
+
+
 ####################
 # EXECUTION EXAMPLE
 ####################
 
 if __name__ == "__main__":
-    print("fha.py: Corrected version with revised fiscal year logic.")
+    print("fha.py: Updated version with single combined table output and custom segment order.")
 
 ##########################
 # STREAMLIT FRONT END
 ##########################
 
- # Display logo
-col1, col2, col3, col4, col5 = st.columns(5)
-col3.image("IS-Logo_RGB_Vertical-onWhite.png", width=112)
+###col1, col2, col3, col4, col5 = st.columns(5)
+###col3.image("IS-Logo_RGB_Vertical-onWhite.png", width=112)
 st.title("Donor File Health Analysis Portal")
 st.write("Upload donor transaction file and run analysis.")
 
 # 1) File Upload
 uploaded_file = st.file_uploader("Upload Transaction File", type=["csv"])
 
-# We'll store a placeholder for the DataFrame once uploaded
 df_uploaded = None
 column_map = {}
 
 if uploaded_file is not None:
-    # Read file into a DataFrame (detect if CSV vs Excel)
     file_name = uploaded_file.name.lower()
     if file_name.endswith('.csv'):
         df_uploaded = pd.read_csv(uploaded_file)
@@ -396,33 +419,28 @@ if uploaded_file is not None:
 
     columns_in_file = df_uploaded.columns.tolist()
 
-    # Required columns
     id_col = st.selectbox("Select the column for Donor ID", columns_in_file)
     amount_col = st.selectbox("Select the column for Amount", columns_in_file)
     date_col = st.selectbox("Select the column for Date", columns_in_file)
 
-    # Build the column_map based on user selections
     column_map = {
         'id': id_col,
         'amount': amount_col,
         'date': date_col
     }
 
-    # Prevent user from selecting the same column for multiple required fields
     if (id_col == amount_col) or (id_col == date_col) or (amount_col == date_col):
         st.error("You have selected the same column for multiple required fields (ID, Amount, Date).")
         st.stop()
 
     st.write("Column mapping complete. Proceed with analysis parameters below.")
-
 else:
-    st.warning("Please upload a file (CSV only) to begin.")
+    st.warning("Please upload a file to begin. (CSV only)")
 
 
 # 3) Parameter Inputs
 st.subheader("Analysis Parameters")
 
-# Fiscal Year Format (dropdown)
 fy_format_options = {
     "January–December": 1,
     "April–March": 4,
@@ -435,38 +453,28 @@ fy_choice = st.selectbox(
 )
 fy_start_month = fy_format_options[fy_choice]
 
-# Let users pick which FYs they want to include
-years_available = list(range(2018, 2025))  # Example range
+years_available = list(range(2018, 2026))
 selected_fys = st.multiselect(
     "Select which Fiscal Years to include in the output",
     years_available,
-    default=[2021, 2022, 2023, 2024]  # or any sensible default
+    default=[2021, 2022, 2023, 2024]
 )
 
-# Date range
 analysis_start_date = st.date_input("Filter Start Date (optional)", value=None)
 analysis_end_date = st.date_input("Filter End Date (optional)", value=None)
 
-# Max donation cutoff
 max_donation_cutoff = st.number_input(
     "Max Donation Amount (exclude donations above this amount)",
     value=10000,
     step=1000
 )
 
-# Button to run
 run_analysis_button = st.button("Run Analysis")
-
-
-##########################
-# RUN ANALYSIS LOGIC
-##########################
 
 if run_analysis_button:
     if df_uploaded is None:
         st.warning("No file uploaded. Please upload a file first.")
     else:
-        # Convert from Streamlit date to pd.Timestamp if user selected something
         start_date = pd.to_datetime(analysis_start_date) if analysis_start_date else None
         end_date = pd.to_datetime(analysis_end_date) if analysis_end_date else None
 
@@ -475,7 +483,6 @@ if run_analysis_button:
         progress_bar = st.progress(0)
 
         try:
-            # 1) Clean & standardize the DataFrame
             trx = clean_data(
                 df_uploaded,
                 column_map=column_map,
@@ -484,8 +491,6 @@ if run_analysis_button:
                 max_amount=max_donation_cutoff,
                 fy_start_month=fy_start_month
             )
-        
-    
         except ValueError as e:
             st.error(f"Column mapping error: {e}")
             st.stop()
@@ -498,47 +503,30 @@ if run_analysis_button:
 
         # 2) Run analysis
         results = runAll(trx, fy_list=sorted(selected_fys))
-
         progress_bar.progress(50)
 
-        # Generate CSVs in-memory for download
-        csv_files = {}
-        for fy, df_out in results.items():
-            csv_files[f"analysis_{fy}.csv"] = df_out.to_csv(index=False)
+        # 3) Rolling analysis for the last selected FY
+        last_fy = sorted(selected_fys)[-1]
+        rolled_data = toRolling(trx)
+        rolling_results = runAll(rolled_data, [last_fy])
 
         progress_bar.progress(70)
 
-        # Rolling analysis
-        rolled_data = toRolling(trx)
-        last_fy = sorted(selected_fys)[-1]
-        rolling_results = runAll(rolled_data, [last_fy])
-        for fy, df_out in rolling_results.items():
-            csv_files[f"analysis_{fy}_rolling.csv"] = df_out.to_csv(index=False)
+        # 4) Combine everything into a single table
+        final_df = combine_results(results, rolling_results, last_fy)
+        final_csv = final_df.to_csv(index=False)
 
-        progress_bar.progress(85)
-
-        import io, zipfile
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for file_name, csv_content in csv_files.items():
-                zip_file.writestr(file_name, csv_content)
-        zip_buffer.seek(0)
-
+        # 5) Single CSV download
         st.download_button(
-            label="Download Analysis Results (Zip)",
-            data=zip_buffer,
-            file_name="analysis_results.zip",
-            mime="application/zip"
+            label="Download Combined Analysis (CSV)",
+            data=final_csv,
+            file_name="analysis_results.csv",
+            mime="text/csv"
         )
-        st.success("Analysis complete! Download the results using the button above.")
+        st.success("Analysis complete! Download your single-table results above.")
 
         progress_bar.progress(100)
-        
-        # 5) Display a summary in-app
-        st.subheader("Analysis Summary")
-        st.write("Here are the breakdowns for each FY you selected:")
-        for fy_str, df_out in results.items():
-            st.markdown(f"**Fiscal Year: {fy_str}**")
-            st.dataframe(df_out)
 
-        st.info("Done! Download your analysis results using the button above.")
+        # (Optional) display final table in-app
+        st.subheader("Combined Table Preview")
+        st.dataframe(final_df)
