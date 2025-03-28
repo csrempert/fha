@@ -397,10 +397,9 @@ if __name__ == "__main__":
 col1, col2, col3, col4, col5 = st.columns(5)
 col3.image("IS-Logo_RGB_Vertical-onWhite.png", width=112)
 st.title("Donor File Health Analysis Portal")
-st.write("Upload donor transaction file and run analysis.")
 
 # 1) File Upload
-uploaded_file = st.file_uploader("Upload Transaction File", type=["csv"])
+uploaded_file = st.file_uploader("Upload donor transaction file and run analysis.", type=["csv"])
 
 df_uploaded = None
 column_map = {}
